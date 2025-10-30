@@ -1,0 +1,189 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  MUSICIAN
+  BACKER
+  ADMIN
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  FUNDED
+  CLOSED
+  CANCELLED
+}
+
+enum PledgeStatus {
+  PENDING
+  COMPLETED
+  REFUNDED
+  FAILED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  password      String
+  role          UserRole  @default(BACKER)
+  bio           String?
+  avatar        String?
+  stripeCustomerId String?
+
+  // Musician specific
+  artistName    String?
+  genre         String?
+  spotifyUrl    String?
+  youtubeUrl    String?
+  website       String?
+
+  campaigns     Campaign[]
+  pledges       Pledge[]
+  comments      Comment[]
+  updates       Update[]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([email])
+}
+
+model Campaign {
+  id              String          @id @default(cuid())
+  title           String
+  slug            String          @unique
+  description     String
+  story           String          @db.Text
+
+  musicianId      String
+  musician        User            @relation(fields: [musicianId], references: [id], onDelete: Cascade)
+
+  goalAmount      Int             // in cents
+  currentAmount   Int             @default(0)
+  currency        String          @default("EUR")
+
+  status          CampaignStatus  @default(DRAFT)
+
+  coverImage      String?
+  videoUrl        String?
+
+  genre           String
+  projectType     String          // Album, EP, Tour, Video, Equipment
+
+  startDate       DateTime
+  endDate         DateTime
+
+  stripeAccountId String?
+
+  pledges         Pledge[]
+  rewards         Reward[]
+  updates         Update[]
+  comments        Comment[]
+
+  backerCount     Int             @default(0)
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([musicianId])
+  @@index([slug])
+  @@index([status])
+}
+
+model Reward {
+  id              String    @id @default(cuid())
+
+  campaignId      String
+  campaign        Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  title           String
+  description     String
+  amount          Int       // in cents
+
+  maxBackers      Int?
+  currentBackers  Int       @default(0)
+
+  estimatedDelivery DateTime?
+
+  isLimited       Boolean   @default(false)
+  isAvailable     Boolean   @default(true)
+
+  pledges         Pledge[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([campaignId])
+}
+
+model Pledge {
+  id              String        @id @default(cuid())
+
+  campaignId      String
+  campaign        Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  backerId        String
+  backer          User          @relation(fields: [backerId], references: [id], onDelete: Cascade)
+
+  rewardId        String?
+  reward          Reward?       @relation(fields: [rewardId], references: [id])
+
+  amount          Int           // in cents
+  status          PledgeStatus  @default(PENDING)
+
+  stripePaymentIntentId String? @unique
+
+  message         String?
+  isAnonymous     Boolean       @default(false)
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([campaignId])
+  @@index([backerId])
+}
+
+model Update {
+  id          String    @id @default(cuid())
+
+  campaignId  String
+  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  title       String
+  content     String    @db.Text
+
+  isPublic    Boolean   @default(true)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([campaignId])
+}
+
+model Comment {
+  id          String    @id @default(cuid())
+
+  campaignId  String
+  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  content     String    @db.Text
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([campaignId])
+}
